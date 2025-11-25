@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GM邮件管理系统 - 网络映射版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0c0c1a 0%, #1a1a3a 50%, #0d1029 100%);
+            color: #e0e0ff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 200, 255, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            box-shadow: 0 0 30px rgba(0, 200, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #00f2ff, #00ffaa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+        }
+
+        /* 新增：数据加载状态指示器 */
+        .data-status {
+            margin-top: 15px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .data-status.loading {
+            background: rgba(255, 200, 0, 0.2);
+            border: 1px solid rgba(255, 200, 0, 0.5);
+            color: #ffdd00;
+        }
+
+        .data-status.loaded {
+            background: rgba(0, 255, 170, 0.2);
+            border: 1px solid rgba(0, 255, 170, 0.5);
+            color: #00ffaa;
+        }
+
+        .data-status.error {
+            background: rgba(255, 50, 100, 0.2);
+            border: 1px solid rgba(255, 50, 100, 0.5);
+            color: #ff3264;
+        }
+
+        .network-time-display {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: rgba(0, 200, 255, 0.1);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .time-icon {
+            font-size: 1.2em;
+        }
+
+        .time-text {
+            color: #00f2ff;
+            font-weight: bold;
+            min-width: 200px;
+        }
+
+        .time-status {
+            font-size: 0.8em;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            padding: 15px 40px;
+            background: rgba(0, 200, 255, 0.1);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            color: #a0f0ff;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(45deg, #00aaff, #00ffcc);
+            color: #0a0a1a;
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel {
+            background: rgba(20, 20, 50, 0.3);
+            border: 1px solid rgba(100, 150, 255, 0.2);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 20, 80, 0.3);
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            color: #00f2ff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '▶';
+            color: #00ffaa;
+            font-size: 0.8em;
+        }
+
+        /* 新增：加载遮罩层 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-card {
+            background: rgba(20, 30, 50, 0.9);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(0, 200, 255, 0.2);
+            border-top: 4px solid #00ffaa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .loading-text {
+            color: #00f2ff;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .loading-subtext {
+            color: #88aaff;
+            font-size: 0.9em;
+        }
+
+        .reward-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .type-card {
+            background: rgba(0, 50, 100, 0.3);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .type-card:hover {
+            border-color: #00ffaa;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 200, 255, 0.3);
+        }
+
+        .type-card.active {
+            background: linear-gradient(135deg, #00aaff, #00ffcc);
+            color: #0a0a1a;
+            border-color: #00ffaa;
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
+        }
+
+        .item-selector {
+            display: none;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            background: rgba(0, 30, 60, 0.3);
+            border-radius: 8px;
+            border: 1px solid rgba(0, 200, 255, 0.2);
+        }
+
+        .item-selector.active {
+            display: grid;
+        }
+
+        .item-card {
+            background: rgba(0, 40, 80, 0.4);
+            border: 1px solid rgba(0, 150, 255, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-card:hover {
+            border-color: #00ffaa;
+            background: rgba(0, 60, 100, 0.5);
+        }
+
+        .item-card.selected {
+            background: linear-gradient(90deg, #00aaff, #00ffcc);
+            color: #0a0a1a;
+            border-color: #00ffaa;
+        }
+
+        .item-name {
+            font-size: 0.95em;
+            flex: 1;
+        }
+
+        .item-id {
+            font-size: 0.8em;
+            opacity: 0.6;
+            margin-left: 10px;
+        }
+
+        .batch-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 0.9em;
+            color: #88aaff;
+        }
+
+        .input-field {
+            background: rgba(0, 30, 60, 0.4);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            border-radius: 6px;
+            padding: 10px 15px;
+            color: #e0f0ff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #00ffaa;
+            box-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #00aaff, #00ffcc);
+            border: none;
+            color: #0a0a1a;
+            padding: 12px 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 200, 255, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #6a11cb, #2575fc);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: linear-gradient(45deg, #666, #888);
+        }
+
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 20, 40, 0.5);
+            border-radius: 10px;
+            border: 1px solid rgba(0, 200, 255, 0.2);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-title {
+            color: #00f2ff;
+            font-weight: bold;
+        }
+
+        .copy-btn {
+            background: rgba(0, 200, 255, 0.2);
+            border: 1px solid #00f2ff;
+            color: #00f2ff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .copy-btn:hover {
+            background: #00f2ff;
+            color: #0a0a1a;
+        }
+
+        .result-textarea {
+            width: 100%;
+            min-height: 150px;
+            background: rgba(0, 10, 30, 0.6);
+            border: 1px solid rgba(100, 150, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            color: #a0f0ff;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+
+        .decrypt-input {
+            width: 100%;
+            min-height: 120px;
+            background: rgba(0, 10, 30, 0.6);
+            border: 1px solid rgba(100, 150, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            color: #e0f0ff;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .report-card {
+            background: rgba(0, 30, 60, 0.4);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 20, 80, 0.3);
+        }
+
+        .report-title {
+            font-size: 1.2em;
+            color: #00ffaa;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .report-title::before {
+            content: '⬢';
+            color: #00f2ff;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .report-item {
+            background: rgba(0, 40, 80, 0.3);
+            border-left: 3px solid #00aaff;
+            padding: 12px;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .report-label {
+            font-size: 0.85em;
+            color: #88aaff;
+            margin-bottom: 5px;
+        }
+
+        .report-value {
+            font-size: 1.1em;
+            color: #e0f0ff;
+            font-weight: bold;
+        }
+
+        .item-summary {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 20, 40, 0.5);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(100, 150, 255, 0.1);
+            font-size: 0.9em;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-success {
+            background: rgba(0, 255, 170, 0.2);
+            color: #00ffaa;
+            border: 1px solid rgba(0, 255, 170, 0.5);
+        }
+
+        .status-error {
+            background: rgba(255, 50, 100, 0.2);
+            color: #ff3264;
+            border: 1px solid rgba(255, 50, 100, 0.5);
+        }
+
+        .toggle-btn {
+            background: rgba(100, 150, 255, 0.2);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            color: #a0f0ff;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .toggle-btn:hover {
+            border-color: #00ffaa;
+            color: #00ffaa;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 20, 40, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(#00aaff, #00ffcc);
+            border-radius: 4px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- 加载遮罩层 -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">正在加载网络映射表...</div>
+            <div class="loading-subtext">首次使用请确保网络畅通</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>GM邮件管理系统</h1>
+            <p>基于AES-EBC-PKCS7加密算法 | 网络映射表动态加载</p>
+            
+            <!-- 数据加载状态 -->
+            <div id="data-status" class="data-status loading">
+                <span class="status-icon">⏳</span>
+                <span class="status-text">数据加载中...</span>
+            </div>
+            
+            <!-- 网络时间显示 -->
+            <div class="network-time-display" id="time-display" style="display: none;">
+                <span class="time-icon">🌐</span>
+                <span class="time-text" id="time-text">正在同步时间...</span>
+                <span class="time-status" id="time-status">●</span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="encrypt">🔐 加密邮件</button>
+            <button class="tab-btn" data-tab="decrypt">🔓 解密邮件</button>
+        </div>
+
+        <!-- 加密面板 -->
+        <div id="encrypt-tab" class="tab-content active">
+            <div class="panel">
+                <!-- 奖励类型选择 -->
+                <div class="section">
+                    <div class="section-title">选择奖励类型</div>
+                    <div class="reward-types">
+                        <div class="type-card" data-type="0" data-loaded="false">
+                            <div class="type-name">普通材料</div>
+                            <div class="type-desc">网络映射加载中...</div>
+                        </div>
+                        <div class="type-card" data-type="1" data-loaded="false">
+                            <div class="type-name">特殊物品</div>
+                            <div class="type-desc">网络映射加载中...</div>
+                        </div>
+                        <div class="type-card" data-type="2" data-loaded="false">
+                            <div class="type-name">货币</div>
+                            <div class="type-desc">网络映射加载中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 物品选择区域 -->
+                <div class="section" id="item-selection-section" style="display: none;">
+                    <div class="section-title" id="item-selection-title">选择物品</div>
+                    <button class="toggle-btn" id="batch-mode-toggle">切换批量输入模式</button>
+                    
+                    <!-- 平铺选择模式 -->
+                    <div id="tile-selector" class="item-selector"></div>
+                    
+                    <!-- 批量输入模式 -->
+                    <div id="batch-input" style="display: none;">
+                        <textarea class="input-field" id="batch-textarea" 
+                                  placeholder="格式：物品ID,数量 (每行一个)&#10;例如：&#10;16,100&#10;26,20000"></textarea>
+                    </div>
+                    
+                    <!-- 全图鉴按钮 -->
+                    <button class="btn btn-secondary" id="add-all-btn" style="margin-top: 15px; display: none;">
+                        一键添加全图鉴
+                    </button>
+                </div>
+
+                <!-- 邮件配置 -->
+                <div class="section" id="mail-config-section" style="display: none;">
+                    <div class="section-title">邮件配置</div>
+                    <div class="batch-section">
+                        <div class="input-group">
+                            <label>邮件标题 (content)</label>
+                            <input type="text" class="input-field" id="mail-content" 
+                                   placeholder="给新镇长的超特级礼物！" value="给新镇长的超特级礼物！">
+                        </div>
+                        <div class="input-group">
+                            <label>过期天数</label>
+                            <input type="number" class="input-field" id="expire-days" 
+                                   placeholder="365" value="365" min="1">
+                        </div>
+                        <div class="input-group">
+                            <label>设备标识</label>
+                            <input type="text" class="input-field" id="device-title" 
+                                   placeholder="sangsung_cn" value="sangsung_cn">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 已选物品列表 -->
+                <div class="section" id="selected-items-section" style="display: none;">
+                    <div class="section-title">已选物品 (<span id="selected-count">0</span>)</div>
+                    <div id="selected-items-list"></div>
+                </div>
+
+                <!-- 生成按钮 -->
+                <button class="btn" id="generate-btn" style="display: none; width: 100%; font-size: 1.2em; padding: 15px;">
+                    🚀 生成加密邮件
+                </button>
+
+                <!-- 结果输出 -->
+                <div class="result-section" id="result-section" style="display: none;">
+                    <div class="result-header">
+                        <span class="result-title">加密结果</span>
+                        <button class="copy-btn" data-target="result-data">复制</button>
+                    </div>
+                    <textarea class="result-textarea" id="result-data" readonly></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- 解密面板 -->
+        <div id="decrypt-tab" class="tab-content">
+            <div class="panel">
+                <div class="section">
+                    <div class="section-title">输入加密数据</div>
+                    <textarea class="decrypt-input" id="decrypt-input" 
+                              placeholder="粘贴完整的JSON数据:&#10;{&#10;  &quot;data&quot;: &quot;...&quot;,&#10;  &quot;ResultCode&quot;: 0,&#10;  &quot;ResultMsg&quot;: &quot;OK&quot;&#10;}"></textarea>
+                    <button class="btn" id="decrypt-btn">🔓 解密并分析</button>
+                </div>
+
+                <div id="decrypt-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 游戏系统架构师模块 ====================
+        class GameDataManager {
+            constructor() {
+                // 网络映射表URL配置
+                this.MAPPING_URLS = {
+                    0: 'http://www.abhsreview.com:801/Home/NoteDetail/d598284f99ef41eb9dad0aa6c241e77f',
+                    1: 'http://www.abhsreview.com:801/Home/NoteDetail/603f8c9e373d4d13a4003f7fb68bbf44',
+                    2: 'http://www.abhsreview.com:801/Home/NoteDetail/c9c6193e68794138857007c5642e3c06',
+                    collection: 'http://www.abhsreview.com:801/Home/NoteDetail/8b7c939aa1884a7ea3c54a2bba5e0f76'
+                };
+
+                // 数据存储对象
+                this.materialMap = {};
+                this.specialMap = {};
+                this.currencyMap = {};
+                this.fullCollectionIds = [];
+                
+                // 数据加载状态
+                this.loadStatus = {
+                    0: { loaded: false, error: null },
+                    1: { loaded: false, error: null },
+                    2: { loaded: false, error: null },
+                    collection: { loaded: false, error: null }
+                };
+                
+                this.allDataLoaded = false;
+                
+                // 时间基准配置
+                this.HOUR_BASE = new Date('2020-01-01T00:00:00').getTime();
+                this.HOUR_MS = 1000 * 60 * 60;
+                
+                // 网络时间状态
+                this.networkTime = null;
+                this.timeOffset = 0;
+                this.isTimeSynced = false;
+                
+                // 从localStorage恢复lastMailId
+                const savedId = localStorage.getItem('gm_mail_last_id');
+                this.lastMailId = savedId ? parseInt(savedId) : (100000000 - 1);
+                
+                // 初始化数据
+                this.initData();
+            }
+
+            /**
+             * 初始化：并行加载所有网络映射表
+             */
+            async initData() {
+                try {
+                    // 显示加载遮罩
+                    this.showLoadingOverlay();
+                    
+                    // 并行加载所有数据
+                    const loadPromises = [
+                        this.loadMappingData(0, this.MAPPING_URLS[0]),
+                        this.loadMappingData(1, this.MAPPING_URLS[1]),
+                        this.loadMappingData(2, this.MAPPING_URLS[2]),
+                        this.loadCollectionData(this.MAPPING_URLS.collection)
+                    ];
+                    
+                    await Promise.all(loadPromises);
+                    
+                    // 检查整体加载状态
+                    this.checkAllDataLoaded();
+                    
+                } catch (error) {
+                    console.error('数据初始化失败:', error);
+                } finally {
+                    this.hideLoadingOverlay();
+                }
+            }
+
+            /**
+             * 加载映射表数据（支持多种格式）
+             */
+            async loadMappingData(type, url) {
+                try {
+                    console.log(`开始加载类型${type}映射表: ${url}`);
+                    
+                    // 使用CORS代理解决跨域问题（生产环境需配置真实代理）
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+                    
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'text/html, text/plain, */*',
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const text = await response.text();
+                    const parsedData = this.parseMappingData(text, type);
+                    
+                    // 存储到对应映射表
+                    if (type === 0) this.materialMap = parsedData;
+                    else if (type === 1) this.specialMap = parsedData;
+                    else if (type === 2) this.currencyMap = parsedData;
+                    
+                    this.loadStatus[type].loaded = true;
+                    this.loadStatus[type].error = null;
+                    
+                    // 更新UI状态
+                    this.updateTypeCardStatus(type, true);
+                    
+                    console.log(`类型${type}映射表加载成功: ${Object.keys(parsedData).length} 条记录`);
+                    
+                } catch (error) {
+                    console.error(`类型${type}映射表加载失败:`, error);
+                    this.loadStatus[type].loaded = false;
+                    this.loadStatus[type].error = error.message;
+                    
+                    // 回退到内置数据
+                    this.fallbackToBuiltInData(type);
+                    this.updateTypeCardStatus(type, false, error.message);
+                }
+            }
+
+            /**
+             * 加载全图鉴数据
+             */
+            async loadCollectionData(url) {
+                try {
+                    console.log(`开始加载全图鉴数据: ${url}`);
+                    
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'text/html, text/plain, */*',
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const text = await response.text();
+                    this.fullCollectionIds = this.parseCollectionData(text);
+                    
+                    this.loadStatus.collection.loaded = true;
+                    this.loadStatus.collection.error = null;
+                    
+                    // 自动合并到特殊物品映射
+                    this.mergeCollectionToSpecialMap();
+                    
+                    console.log(`全图鉴数据加载成功: ${this.fullCollectionIds.length} 个ID`);
+                    
+                } catch (error) {
+                    console.error('全图鉴数据加载失败:', error);
+                    this.loadStatus.collection.loaded = false;
+                    this.loadStatus.collection.error = error.message;
+                    
+                    // 回退到内置全图鉴
+                    this.fallbackToBuiltInCollection();
+                }
+            }
+
+            /**
+             * 解析映射表数据（支持多种格式）
+             */
+            parseMappingData(text, type) {
+                const data = {};
+                
+                try {
+                    // 尝试JSON解析
+                    if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+                        const json = JSON.parse(text);
+                        
+                        // 格式1: {"1":"名称", "2":"名称"}
+                        if (typeof json === 'object' && !Array.isArray(json)) {
+                            Object.entries(json).forEach(([id, name]) => {
+                                data[parseInt(id)] = name;
+                            });
+                        }
+                        // 格式2: [{"id":1,"name":"名称"}, ...]
+                        else if (Array.isArray(json)) {
+                            json.forEach(item => {
+                                if (item.id !== undefined && item.name !== undefined) {
+                                    data[parseInt(item.id)] = item.name;
+                                }
+                            });
+                        }
+                    }
+                    // 尝试文本格式解析
+                    else {
+                        // 格式: "ID: 名称" 或 "ID=名称" 或 "ID 名称"
+                        const lines = text.split('\n');
+                        lines.forEach(line => {
+                            const trimmed = line.trim();
+                            if (!trimmed) return;
+                            
+                            // 匹配模式: 数字 + 分隔符 + 文本
+                            const match = trimmed.match(/^(\d+)[:=\s]+(.+)$/);
+                            if (match) {
+                                data[parseInt(match[1])] = match[2].trim();
+                            }
+                        });
+                    }
+                    
+                    // 如果没有解析到任何数据，抛出错误
+                    if (Object.keys(data).length === 0) {
+                        throw new Error('无法解析数据格式或数据为空');
+                    }
+                    
+                    return data;
+                    
+                } catch (error) {
+                    console.error('数据解析失败:', error, text.substring(0, 200));
+                    throw new Error(`数据解析失败: ${error.message}`);
+                }
+            }
+
+            /**
+             * 解析全图鉴数据
+             */
+            parseCollectionData(text) {
+                const ids = [];
+                
+                try {
+                    // 尝试JSON数组格式
+                    if (text.trim().startsWith('[')) {
+                        const json = JSON.parse(text);
+                        if (Array.isArray(json)) {
+                            json.forEach(id => {
+                                const numId = parseInt(id);
+                                if (!isNaN(numId)) ids.push(numId);
+                            });
+                        }
+                    }
+                    // 尝试文本格式（每行一个ID）
+                    else {
+                        const lines = text.split('\n');
+                        lines.forEach(line => {
+                            const trimmed = line.trim();
+                            if (trimmed && /^\d+$/.test(trimmed)) {
+                                ids.push(parseInt(trimmed));
+                            }
+                        });
+                    }
+                    
+                    return ids;
+                    
+                } catch (error) {
+                    console.error('全图鉴数据解析失败:', error);
+                    throw error;
+                }
+            }
+
+            /**
+             * 将全图鉴ID合并到特殊物品映射
+             */
+            mergeCollectionToSpecialMap() {
+                if (this.fullCollectionIds.length === 0) return;
+                
+                this.fullCollectionIds.forEach(id => {
+                    // 如果特殊映射中不存在该ID，添加占位符名称
+                    if (!this.specialMap[id]) {
+                        this.specialMap[id] = `图鉴物品_${id}`;
+                    }
+                });
+            }
+
+            /**
+             * 回退到内置数据
+             */
+            fallbackToBuiltInData(type) {
+                console.warn(`回退到类型${type}内置数据`);
+                
+                // 内置数据（精简版，用于确保基本功能可用）
+                const builtInData = {
+                    0: { 1: "麻布料", 16: "鋯石", 26: "银", 137: "光之石" },
+                    1: { 9: "刺客时装", 71: "守护天使时装", 109: "大天使的剑时装" },
+                    2: { 0: "宝石", 1: "自然之力", 2: "金币" }
+                };
+                
+                if (type === 0) this.materialMap = { ...builtInData[0], ...this.materialMap };
+                else if (type === 1) this.specialMap = { ...builtInData[1], ...this.specialMap };
+                else if (type === 2) this.currencyMap = { ...builtInData[2], ...this.currencyMap };
+                
+                // 触发UI更新
+                if (this.gameManager?.uiManager) {
+                    this.uiManager.renderItemSelector(type);
+                }
+            }
+
+            /**
+             * 回退到内置全图鉴
+             */
+            fallbackToBuiltInCollection() {
+                console.warn('回退到内置全图鉴');
+                this.fullCollectionIds = [9, 71, 109, 117, 254, 358];
+                this.mergeCollectionToSpecialMap();
+            }
+
+            /**
+             * 更新类型卡片状态
+             */
+            updateTypeCardStatus(type, success, error = null) {
+                const card = document.querySelector(`.type-card[data-type="${type}"]`);
+                if (!card) return;
+                
+                const descElement = card.querySelector('.type-desc');
+                if (success) {
+                    const dataMap = type === 0 ? this.materialMap : type === 1 ? this.specialMap : this.currencyMap;
+                    descElement.textContent = `已加载 ${Object.keys(dataMap).length} 项`;
+                    card.setAttribute('data-loaded', 'true');
+                } else {
+                    descElement.textContent = `加载失败: ${error || '未知错误'}`;
+                    card.setAttribute('data-loaded', 'false');
+                    card.style.opacity = '0.5';
+                }
+            }
+
+            /**
+             * 检查所有数据是否加载完成
+             */
+            checkAllDataLoaded() {
+                const allLoaded = Object.values(this.loadStatus).every(status => status.loaded);
+                const allErrors = Object.values(this.loadStatus).filter(status => status.error).length;
+                
+                this.allDataLoaded = allLoaded;
+                
+                const statusElement = document.getElementById('data-status');
+                const statusIcon = statusElement.querySelector('.status-icon');
+                const statusText = statusElement.querySelector('.status-text');
+                
+                if (allLoaded) {
+                    statusElement.className = 'data-status loaded';
+                    statusIcon.textContent = '✅';
+                    statusText.textContent = '网络映射表加载完成';
+                } else if (allErrors > 0) {
+                    statusElement.className = 'data-status error';
+                    statusIcon.textContent = '⚠️';
+                    statusText.textContent = `${allErrors}个映射表加载失败，已回退到内置数据`;
+                } else {
+                    statusElement.className = 'data-status loading';
+                    statusIcon.textContent = '⏳';
+                    statusText.textContent = '部分映射表加载中...';
+                }
+                
+                // 启用UI
+                if (allLoaded || allErrors < Object.keys(this.loadStatus).length) {
+                    this.enableUI();
+                }
+            }
+
+            /**
+             * 启用UI控制
+             */
+            enableUI() {
+                document.querySelectorAll('.type-card').forEach(card => {
+                    card.style.pointerEvents = 'auto';
+                    card.style.opacity = '1';
+                });
+                
+                document.getElementById('time-display').style.display = 'inline-flex';
+                this.startTimeSync();
+            }
+
+            /**
+             * 显示/隐藏加载遮罩
+             */
+            showLoadingOverlay() {
+                document.getElementById('loading-overlay').style.display = 'flex';
+            }
+            
+            hideLoadingOverlay() {
+                document.getElementById('loading-overlay').style.display = 'none';
+            }
+
+            // ==================== 原有方法（保持不变） ====================
+            startTimeSync() {
+                this.syncNetworkTime();
+                
+                setInterval(() => {
+                    this.updateTimeDisplay();
+                }, 1000);
+                
+                setInterval(() => {
+                    this.syncNetworkTime();
+                }, 5 * 60 * 1000);
+            }
+
+            async syncNetworkTime() {
+                try {
+                    const serverTime = await this.fetchNetworkTime();
+                    const localTime = Date.now();
+                    
+                    this.timeOffset = serverTime - localTime;
+                    this.networkTime = serverTime;
+                    this.isTimeSynced = true;
+                    
+                    this.updateTimeDisplay();
+                    
+                } catch (error) {
+                    this.isTimeSynced = false;
+                    this.networkTime = Date.now();
+                    this.timeOffset = 0;
+                    
+                    this.updateTimeDisplay(true);
+                }
+            }
+
+            async fetchNetworkTime() {
+                try {
+                    const controller = new AbortController();
+                    setTimeout(() => controller.abort(), 5000);
+                    
+                    const response = await fetch('https://worldtimeapi.org/api/timezone/Asia/Shanghai', {
+                        signal: controller.signal
+                    });
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const data = await response.json();
+                    return new Date(data.datetime).getTime();
+                    
+                } catch (error) {
+                    throw error;
+                }
+            }
+
+            updateTimeDisplay(isError = false) {
+                const timeText = document.getElementById('time-text');
+                const timeStatus = document.getElementById('time-status');
+                
+                if (!timeText) return;
+                
+                const displayTime = new Date(this.getCurrentTime());
+                const timeStr = displayTime.toLocaleString('zh-CN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                });
+                
+                timeText.textContent = timeStr;
+                
+                if (isError) {
+                    timeStatus.style.color = '#ff5555';
+                    timeStatus.textContent = '⚠️';
+                    timeText.style.color = '#ffaaa0';
+                } else {
+                    timeStatus.style.color = '#00ffaa';
+                    timeStatus.textContent = '●';
+                    timeText.style.color = '#00f2ff';
+                }
+            }
+
+            getCurrentTime() {
+                if (this.isTimeSynced) {
+                    return Date.now() + this.timeOffset;
+                }
+                return Date.now();
+            }
+
+            getHourStamp() {
+                const currentTime = this.getCurrentTime();
+                return Math.floor((currentTime - this.HOUR_BASE) / this.HOUR_MS);
+            }
+
+            getItemName(type, id) {
+                // 等待数据加载完成
+                if (!this.allDataLoaded) {
+                    return `加载中... (Type:${type}, ID:${id})`;
+                }
+                
+                if (type === 0) return this.materialMap[id] || `未知材料(${id})`;
+                if (type === 1) return this.specialMap[id] || `未知物品(${id})`;
+                if (type === 2) return this.currencyMap[id] || `未知货币(${id})`;
+                return `未知类型(${type})`;
+            }
+
+            generateUniqueMailId(existingIds) {
+                const hourStamp = this.getHourStamp();
+                const baseId = 100000000 + (hourStamp % 900000000);
+                let startId = Math.max(baseId, this.lastMailId + 1);
+                
+                let id = startId;
+                let attempts = 0;
+                const MAX_ATTEMPTS = 100000;
+                
+                while (existingIds.has(id)) {
+                    id++;
+                    attempts++;
+                    if (id > 999999999) id = 100000000;
+                    if (attempts > MAX_ATTEMPTS) {
+                        id = Math.max(startId, this.lastMailId + 1);
+                        break;
+                    }
+                    if (id === startId && attempts > 0) {
+                        throw new Error("ID空间耗尽");
+                    }
+                }
+                
+                this.lastMailId = id;
+                localStorage.setItem('gm_mail_last_id', id.toString());
+                localStorage.setItem('gm_mail_last_hour', hourStamp.toString());
+                
+                return id;
+            }
+
+            generateExpireTimestamp(days) {
+                const now = Math.floor(this.getCurrentTime() / 1000);
+                return (now + (days * 86400)).toString();
+            }
+
+            generateMailData(items, config) {
+                const mailList = [];
+                const usedIds = new Set();
+                
+                items.forEach(item => {
+                    const mailId = this.generateUniqueMailId(usedIds);
+                    usedIds.add(mailId);
+                    
+                    mailList.push({
+                        reward: {
+                            rewardType: item.type,
+                            num: item.id,
+                            count: item.count
+                        },
+                        value2: "",
+                        value1: "",
+                        expire_at: this.generateExpireTimestamp(config.expireDays),
+                        id: mailId,
+                        title: config.deviceTitle,
+                        content: config.content
+                    });
+                });
+                
+                return {
+                    List: mailList,
+                    ResultCode: 0,
+                    ResultMsg: "OK"
+                };
+            }
+        }
+
+        // ==================== 密码学工程师模块 ====================
+        class CryptoEngine {
+            constructor() {
+                this.KEY = "retroartstycoon!";
+                this.KEY_SIZE = 16;
+            }
+
+            async encrypt(plainText) {
+                try {
+                    const keyBuffer = this.getKeyBuffer();
+                    const dataBuffer = new TextEncoder().encode(plainText);
+                    const paddedBuffer = this.pkcs7Pad(dataBuffer);
+                    
+                    const cryptoKey = await crypto.subtle.importKey(
+                        "raw",
+                        keyBuffer,
+                        { name: "AES-CBC" },
+                        false,
+                        ["encrypt"]
+                    );
+
+                    const iv = new Uint8Array(16);
+                    
+                    const encrypted = await crypto.subtle.encrypt(
+                        { name: "AES-CBC", iv },
+                        cryptoKey,
+                        paddedBuffer
+                    );
+
+                    return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+                } catch (error) {
+                    console.error("加密失败:", error);
+                    throw new Error("加密失败: " + error.message);
+                }
+            }
+
+            async decrypt(encryptedBase64) {
+                try {
+                    const keyBuffer = this.getKeyBuffer();
+                    const encryptedBuffer = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+                    
+                    const cryptoKey = await crypto.subtle.importKey(
+                        "raw",
+                        keyBuffer,
+                        { name: "AES-CBC" },
+                        false,
+                        ["decrypt"]
+                    );
+
+                    const iv = new Uint8Array(16);
+                    
+                    const decrypted = await crypto.subtle.decrypt(
+                        { name: "AES-CBC", iv },
+                        cryptoKey,
+                        encryptedBuffer
+                    );
+
+                    const unpaddedBuffer = this.pkcs7Unpad(new Uint8Array(decrypted));
+                    
+                    return new TextDecoder().decode(unpaddedBuffer);
+                } catch (error) {
+                    console.error("解密失败:", error);
+                    throw new Error("解密失败: 无效的密钥或数据");
+                }
+            }
+
+            getKeyBuffer() {
+                const encoder = new TextEncoder();
+                const keyData = encoder.encode(this.KEY);
+                const keyBuffer = new Uint8Array(this.KEY_SIZE);
+                keyBuffer.set(keyData.slice(0, this.KEY_SIZE));
+                return keyBuffer;
+            }
+
+            pkcs7Pad(buffer) {
+                const blockSize = 16;
+                const padLength = blockSize - (buffer.length % blockSize);
+                const padded = new Uint8Array(buffer.length + padLength);
+                padded.set(buffer);
+                padded.fill(padLength, buffer.length);
+                return padded;
+            }
+
+            pkcs7Unpad(buffer) {
+                const padLength = buffer[buffer.length - 1];
+                if (padLength > 16 || padLength === 0) return buffer;
+                return buffer.slice(0, buffer.length - padLength);
+            }
+        }
+
+        // ==================== 前端UX设计师模块 ====================
+        class UIManager {
+            constructor(gameManager, cryptoEngine) {
+                this.gameManager = gameManager;
+                this.cryptoEngine = cryptoEngine;
+                this.initEventListeners();
+                // 将uiManager引用传递给gameManager
+                this.gameManager.uiManager = this;
+            }
+
+            initEventListeners() {
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+                });
+
+                document.querySelectorAll('.type-card').forEach(card => {
+                    card.addEventListener('click', (e) => this.selectRewardType(e.target.closest('.type-card')));
+                });
+
+                document.getElementById('batch-mode-toggle').addEventListener('click', () => this.toggleBatchMode());
+                document.getElementById('add-all-btn').addEventListener('click', () => this.addFullCollection());
+                document.getElementById('generate-btn').addEventListener('click', () => this.generateMail());
+                document.getElementById('decrypt-btn').addEventListener('click', () => this.decryptMail());
+
+                document.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('copy-btn')) {
+                        this.copyToClipboard(document.getElementById(e.target.dataset.target));
+                    }
+                });
+            }
+
+            switchTab(tabName) {
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+            }
+
+            selectRewardType(card) {
+                document.querySelectorAll('.type-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                
+                const type = parseInt(card.dataset.type);
+                this.gameManager.currentType = type;
+                
+                document.getElementById('item-selection-section').style.display = 'block';
+                document.getElementById('mail-config-section').style.display = 'block';
+                document.getElementById('generate-btn').style.display = 'block';
+                
+                this.renderItemSelector(type);
+                this.updateSelectedItemsDisplay();
+            }
+
+            renderItemSelector(type) {
+                const selector = document.getElementById('tile-selector');
+                selector.innerHTML = '';
+                
+                let dataMap;
+                if (type === 0) dataMap = this.gameManager.materialMap;
+                else if (type === 1) dataMap = this.gameManager.specialMap;
+                else if (type === 2) dataMap = this.gameManager.currencyMap;
+                
+                document.getElementById('add-all-btn').style.display = type === 1 ? 'block' : 'none';
+
+                // 按名称排序
+                const sortedEntries = Object.entries(dataMap).sort((a, b) => a[1].localeCompare(b[1]));
+                
+                sortedEntries.forEach(([id, name]) => {
+                    const itemCard = document.createElement('div');
+                    itemCard.className = 'item-card';
+                    itemCard.dataset.id = id;
+                    itemCard.innerHTML = `
+                        <span class="item-name">${name}</span>
+                        <span class="item-id">ID:${id}</span>
+                    `;
+                    
+                    itemCard.addEventListener('click', () => this.toggleItemSelection(type, parseInt(id), name));
+                    selector.appendChild(itemCard);
+                });
+                
+                selector.classList.add('active');
+            }
+
+            toggleBatchMode() {
+                this.gameManager.isBatchMode = !this.gameManager.isBatchMode;
+                const toggleBtn = document.getElementById('batch-mode-toggle');
+                const tileSelector = document.getElementById('tile-selector');
+                const batchInput = document.getElementById('batch-input');
+                
+                if (this.gameManager.isBatchMode) {
+                    toggleBtn.textContent = '切换平铺选择模式';
+                    tileSelector.style.display = 'none';
+                    batchInput.style.display = 'block';
+                    document.getElementById('add-all-btn').style.display = 'none';
+                } else {
+                    toggleBtn.textContent = '切换批量输入模式';
+                    tileSelector.style.display = 'grid';
+                    batchInput.style.display = 'none';
+                    document.getElementById('add-all-btn').style.display = 
+                        this.gameManager.currentType === 1 ? 'block' : 'none';
+                }
+            }
+
+            addFullCollection() {
+                if (!this.gameManager.loadStatus[1].loaded) {
+                    alert('特殊物品映射表尚未加载完成！');
+                    return;
+                }
+                
+                if (this.gameManager.currentType !== 1) return;
+                
+                let addedCount = 0;
+                this.gameManager.fullCollectionIds.forEach(id => {
+                    if (!this.gameManager.specialMap[id]) return; // 跳过不存在的ID
+                    
+                    const exists = this.gameManager.selectedItems.find(item => 
+                        item.type === 1 && item.id === id
+                    );
+                    if (!exists) {
+                        this.gameManager.selectedItems.push({
+                            type: 1,
+                            id: id,
+                            name: this.gameManager.getItemName(1, id),
+                            count: 1
+                        });
+                        addedCount++;
+                    }
+                });
+                
+                this.updateSelectedItemsDisplay();
+                alert(`已添加 ${addedCount} 个全图鉴物品`);
+            }
+
+            toggleItemSelection(type, id, name) {
+                const existingIndex = this.gameManager.selectedItems.findIndex(item => 
+                    item.type === type && item.id === id
+                );
+                
+                if (existingIndex >= 0) {
+                    this.gameManager.selectedItems.splice(existingIndex, 1);
+                } else {
+                    this.gameManager.selectedItems.push({ type, id, name, count: 1 });
+                }
+                
+                this.updateSelectedItemsDisplay();
+                this.updateItemCardState(type, id);
+            }
+
+            updateItemCardState(type, id) {
+                const card = document.querySelector(`[data-id="${id}"]`);
+                if (!card) return;
+                
+                const exists = this.gameManager.selectedItems.some(item => 
+                    item.type === type && item.id === id
+                );
+                
+                if (exists) card.classList.add('selected');
+                else card.classList.remove('selected');
+            }
+
+            updateSelectedItemsDisplay() {
+                const container = document.getElementById('selected-items-list');
+                const countSpan = document.getElementById('selected-count');
+                
+                countSpan.textContent = this.gameManager.selectedItems.length;
+                
+                if (this.gameManager.selectedItems.length === 0) {
+                    document.getElementById('selected-items-section').style.display = 'none';
+                    return;
+                }
+                
+                document.getElementById('selected-items-section').style.display = 'block';
+                
+                container.innerHTML = this.gameManager.selectedItems.map((item, index) => `
+                    <div class="batch-section" style="margin-bottom: 10px; padding: 10px; 
+                         background: rgba(0,50,100,0.3); border-radius: 6px;">
+                        <span style="flex: 1;">${item.name} (ID:${item.id})</span>
+                        <div class="input-group" style="flex: 0 0 150px; margin: 0;">
+                            <label style="font-size: 0.8em;">数量</label>
+                            <input type="number" class="input-field" style="padding: 5px;" 
+                                   value="${item.count}" min="1" max="9999999"
+                                   onchange="uiManager.updateItemCount(${index}, this.value)">
+                        </div>
+                        <button class="btn" style="background: linear-gradient(45deg, #ff5555, #ff0000); 
+                                padding: 5px 10px; margin-left: 10px;" 
+                                onclick="uiManager.removeItem(${index})">移除</button>
+                    </div>
+                `).join('');
+            }
+
+            updateItemCount(index, value) {
+                const count = Math.max(1, parseInt(value) || 1);
+                this.gameManager.selectedItems[index].count = count;
+            }
+
+            removeItem(index) {
+                this.gameManager.selectedItems.splice(index, 1);
+                this.updateSelectedItemsDisplay();
+            }
+
+            async generateMail() {
+                // 检查数据是否加载完成
+                if (!this.gameManager.allDataLoaded) {
+                    const confirmForce = confirm('部分映射表尚未加载完成，可能导致物品名称显示异常。是否继续生成？');
+                    if (!confirmForce) return;
+                }
+                
+                if (this.gameManager.selectedItems.length === 0) {
+                    alert('请先选择至少一个物品！');
+                    return;
+                }
+
+                const config = {
+                    content: document.getElementById('mail-content').value || '给新镇长的超特级礼物！',
+                    expireDays: parseInt(document.getElementById('expire-days').value) || 365,
+                    deviceTitle: document.getElementById('device-title').value || 'sangsung_cn'
+                };
+
+                if (this.gameManager.isBatchMode) {
+                    this.processBatchInput();
+                }
+
+                const mailData = this.gameManager.generateMailData(this.gameManager.selectedItems, config);
+                const jsonString = JSON.stringify(mailData);
+                
+                try {
+                    const encrypted = await this.cryptoEngine.encrypt(jsonString);
+                    const result = {
+                        data: encrypted,
+                        ResultCode: 0,
+                        ResultMsg: "OK"
+                    };
+                    
+                    document.getElementById('result-data').value = JSON.stringify(result, null, 2);
+                    document.getElementById('result-section').style.display = 'block';
+                    
+                    // 显示生成成功提示
+                    alert(`成功生成 ${mailData.List.length} 封加密邮件！`);
+                } catch (error) {
+                    alert('加密失败: ' + error.message);
+                }
+            }
+
+            processBatchInput() {
+                const textarea = document.getElementById('batch-textarea');
+                const lines = textarea.value.trim().split('\n');
+                
+                lines.forEach(line => {
+                    const parts = line.split(',');
+                    if (parts.length >= 2) {
+                        const id = parseInt(parts[0]);
+                        const count = parseInt(parts[1]) || 1;
+                        if (id > 0) {
+                            const existsIndex = this.gameManager.selectedItems.findIndex(item => 
+                                item.type === this.gameManager.currentType && item.id === id
+                            );
+                            
+                            if (existsIndex >= 0) {
+                                this.gameManager.selectedItems[existsIndex].count = count;
+                            } else {
+                                this.gameManager.selectedItems.push({
+                                    type: this.gameManager.currentType,
+                                    id: id,
+                                    name: this.gameManager.getItemName(this.gameManager.currentType, id),
+                                    count: count
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+
+            async decryptMail() {
+                const input = document.getElementById('decrypt-input').value.trim();
+                const resultContainer = document.getElementById('decrypt-result');
+                
+                if (!input) {
+                    alert('请输入加密数据！');
+                    return;
+                }
+
+                try {
+                    const jsonData = JSON.parse(input);
+                    if (!jsonData.data) throw new Error("缺少data字段");
+                    
+                    const decrypted = await this.cryptoEngine.decrypt(jsonData.data);
+                    const mailData = JSON.parse(decrypted);
+                    
+                    this.renderDecryptReport(mailData);
+                } catch (error) {
+                    resultContainer.innerHTML = `
+                        <div class="report-card">
+                            <div class="report-title">
+                                ❌ 解密失败
+                            </div>
+                            <div class="report-grid">
+                                <div class="report-item">
+                                    <div class="report-label">错误信息</div>
+                                    <div class="report-value status-error">${error.message}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            renderDecryptReport(mailData) {
+                const resultContainer = document.getElementById('decrypt-result');
+                let html = '';
+
+                const totalItems = mailData.List ? mailData.List.reduce((sum, mail) => sum + mail.reward.count, 0) : 0;
+                const mailCount = mailData.List ? mailData.List.length : 0;
+                
+                html += `
+                    <div class="report-card">
+                        <div class="report-title">
+                            📊 邮件概览
+                        </div>
+                        <div class="report-grid">
+                            <div class="report-item">
+                                <div class="report-label">邮件数量</div>
+                                <div class="report-value">${mailCount}</div>
+                            </div>
+                            <div class="report-item">
+                                <div class="report-label">物品总数</div>
+                                <div class="report-value">${totalItems.toLocaleString()}</div>
+                            </div>
+                            <div class="report-item">
+                                <div class="report-label">状态码</div>
+                                <div class="report-value status-success">ResultCode: ${mailData.ResultCode}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                if (mailData.List && mailData.List.length > 0) {
+                    mailData.List.forEach((mail, index) => {
+                        const expireDate = new Date(parseInt(mail.expire_at) * 1000);
+                        const itemTypeName = this.getTypeName(mail.reward.rewardType);
+                        const itemName = this.gameManager.getItemName(mail.reward.rewardType, mail.reward.num);
+                        
+                        html += `
+                            <div class="report-card">
+                                <div class="report-title">
+                                    📧 邮件 #${index + 1} - ID: ${mail.id}
+                                </div>
+                                <div class="report-grid">
+                                    <div class="report-item">
+                                        <div class="report-label">邮件标题</div>
+                                        <div class="report-value">${mail.content}</div>
+                                    </div>
+                                    <div class="report-item">
+                                        <div class="report-label">设备标识</div>
+                                        <div class="report-value">${mail.title}</div>
+                                    </div>
+                                    <div class="report-item">
+                                        <div class="report-label">过期时间</div>
+                                        <div class="report-value">${expireDate.toLocaleString('zh-CN')}</div>
+                                    </div>
+                                    <div class="report-item">
+                                        <div class="report-label">物品类型</div>
+                                        <div class="report-value">${itemTypeName}</div>
+                                    </div>
+                                    <div class="report-item">
+                                        <div class="report-label">物品信息</div>
+                                        <div class="report-value">${itemName} × ${mail.reward.count.toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                const stats = this.calculateItemStats(mailData.List);
+                html += `
+                    <div class="report-card">
+                        <div class="report-title">
+                            📈 物品统计
+                        </div>
+                        <div class="report-grid">
+                            <div class="report-item">
+                                <div class="report-label">货币类</div>
+                                <div class="report-value">${stats.currency.count} 种，共 ${stats.currency.total.toLocaleString()}</div>
+                            </div>
+                            <div class="report-item">
+                                <div class="report-label">材料类</div>
+                                <div class="report-value">${stats.material.count} 种，共 ${stats.material.total.toLocaleString()}</div>
+                            </div>
+                            <div class="report-item">
+                                <div class="report-label">特殊类</div>
+                                <div class="report-value">${stats.special.count} 种，共 ${stats.special.total.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <div class="report-label">详细清单</div>
+                            <div class="item-summary">
+                                ${stats.allItems.map(item => `
+                                    <div class="summary-item">
+                                        <span>${item.name}</span>
+                                        <span>×${item.count.toLocaleString()}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                resultContainer.innerHTML = html;
+            }
+
+            getTypeName(type) {
+                const typeMap = { 0: '普通材料', 1: '特殊物品', 2: '货币' };
+                return typeMap[type] || '未知';
+            }
+
+            calculateItemStats(mailList) {
+                const stats = {
+                    currency: { count: 0, total: 0 },
+                    material: { count: 0, total: 0 },
+                    special: { count: 0, total: 0 },
+                    allItems: []
+                };
+
+                const itemMap = new Map();
+
+                mailList.forEach(mail => {
+                    const { rewardType, num, count } = mail.reward;
+                    const key = `${rewardType}-${num}`;
+                    const name = this.gameManager.getItemName(rewardType, num);
+
+                    if (itemMap.has(key)) {
+                        itemMap.get(key).count += count;
+                    } else {
+                        itemMap.set(key, { type: rewardType, name, count });
+                    }
+
+                    if (rewardType === 0) {
+                        stats.material.total += count;
+                    } else if (rewardType === 1) {
+                        stats.special.total += count;
+                    } else if (rewardType === 2) {
+                        stats.currency.total += count;
+                    }
+                });
+
+                stats.allItems = Array.from(itemMap.values()).sort((a, b) => b.count - a.count);
+                stats.material.count = stats.allItems.filter(item => item.type === 0).length;
+                stats.special.count = stats.allItems.filter(item => item.type === 1).length;
+                stats.currency.count = stats.allItems.filter(item => item.type === 2).length;
+
+                return stats;
+            }
+
+            async copyToClipboard(element) {
+                try {
+                    await navigator.clipboard.writeText(element.value);
+                    alert('已复制到剪贴板！');
+                } catch (error) {
+                    element.select();
+                    document.execCommand('copy');
+                    alert('已复制到剪贴板！');
+                }
+            }
+        }
+
+        // ==================== 密码学工程师模块 ====================
+        class CryptoEngine {
+            constructor() {
+                this.KEY = "retroartstycoon!";
+                this.KEY_SIZE = 16;
+            }
+
+            async encrypt(plainText) {
+                try {
+                    const keyBuffer = this.getKeyBuffer();
+                    const dataBuffer = new TextEncoder().encode(plainText);
+                    const paddedBuffer = this.pkcs7Pad(dataBuffer);
+                    
+                    const cryptoKey = await crypto.subtle.importKey(
+                        "raw",
+                        keyBuffer,
+                        { name: "AES-CBC" },
+                        false,
+                        ["encrypt"]
+                    );
+
+                    const iv = new Uint8Array(16);
+                    
+                    const encrypted = await crypto.subtle.encrypt(
+                        { name: "AES-CBC", iv },
+                        cryptoKey,
+                        paddedBuffer
+                    );
+
+                    return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+                } catch (error) {
+                    console.error("加密失败:", error);
+                    throw new Error("加密失败: " + error.message);
+                }
+            }
+
+            async decrypt(encryptedBase64) {
+                try {
+                    const keyBuffer = this.getKeyBuffer();
+                    const encryptedBuffer = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+                    
+                    const cryptoKey = await crypto.subtle.importKey(
+                        "raw",
+                        keyBuffer,
+                        { name: "AES-CBC" },
+                        false,
+                        ["decrypt"]
+                    );
+
+                    const iv = new Uint8Array(16);
+                    
+                    const decrypted = await crypto.subtle.decrypt(
+                        { name: "AES-CBC", iv },
+                        cryptoKey,
+                        encryptedBuffer
+                    );
+
+                    const unpaddedBuffer = this.pkcs7Unpad(new Uint8Array(decrypted));
+                    
+                    return new TextDecoder().decode(unpaddedBuffer);
+                } catch (error) {
+                    console.error("解密失败:", error);
+                    throw new Error("解密失败: 无效的密钥或数据");
+                }
+            }
+
+            getKeyBuffer() {
+                const encoder = new TextEncoder();
+                const keyData = encoder.encode(this.KEY);
+                const keyBuffer = new Uint8Array(this.KEY_SIZE);
+                keyBuffer.set(keyData.slice(0, this.KEY_SIZE));
+                return keyBuffer;
+            }
+
+            pkcs7Pad(buffer) {
+                const blockSize = 16;
+                const padLength = blockSize - (buffer.length % blockSize);
+                const padded = new Uint8Array(buffer.length + padLength);
+                padded.set(buffer);
+                padded.fill(padLength, buffer.length);
+                return padded;
+            }
+
+            pkcs7Unpad(buffer) {
+                const padLength = buffer[buffer.length - 1];
+                if (padLength > 16 || padLength === 0) return buffer;
+                return buffer.slice(0, buffer.length - padLength);
+            }
+        }
+
+        // ==================== 初始化 ====================
+        // 创建实例
+        const gameManager = new GameDataManager();
+        const cryptoEngine = new CryptoEngine();
+        const uiManager = new UIManager(gameManager, cryptoEngine);
+        
+        // 全局暴露
+        window.uiManager = uiManager;
+        window.gameManager = gameManager;
+        
+        console.log('GM邮件管理系统初始化完成');
+    </script>
+</body>
+</html>
